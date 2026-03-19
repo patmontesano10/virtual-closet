@@ -19,6 +19,8 @@ export default function UploadModal() {
   const [brand, setBrand] = useState('')
   const [loading, setLoading] = useState(false)
   const [bgRemoving, setBgRemoving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -40,20 +42,19 @@ export default function UploadModal() {
     if (!file || !name) return
     setLoading(true)
 
+    setError(null)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) { setError('Not logged in'); setLoading(false); return }
 
-      // Remove background client-side
-      const processedBlob = await removeBackground(file)
-      const processedFile = new File([processedBlob], `${Date.now()}.png`, { type: 'image/png' })
-
-      // Upload to Supabase Storage
-      const path = `${user.id}/${processedFile.name}`
+      // Upload original image (bg removal can be added later)
+      const ext = file.name.split('.').pop() || 'jpg'
+      const filename = `${Date.now()}.${ext}`
+      const path = `${user.id}/${filename}`
       const { error: uploadError } = await supabase.storage
         .from('wardrobe')
-        .upload(path, processedFile)
+        .upload(path, file)
 
       if (uploadError) throw uploadError
 
@@ -78,6 +79,7 @@ export default function UploadModal() {
       router.refresh()
     } catch (err) {
       console.error(err)
+      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
@@ -176,12 +178,13 @@ export default function UploadModal() {
             </div>
           </div>
 
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           <button
             type="submit"
             disabled={loading || !file || !name}
             className="w-full py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-700 disabled:opacity-50 transition-colors"
           >
-            {bgRemoving ? 'Removing background…' : loading ? 'Uploading…' : 'Add to closet'}
+            {loading ? 'Uploading…' : 'Add to closet'}
           </button>
         </form>
       </div>
